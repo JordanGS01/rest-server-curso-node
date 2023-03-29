@@ -6,35 +6,42 @@ const bcrypyjs = require('bcryptjs');
 const Usuario = require('../models/usuario');
 
 
-const userGet = (req = request, res = response) => {
-    const params = req.query;
+const userGet = async(req = request, res = response) => {
+    const { limit = 5, startFrom = 0 } = req.query
+    const query = { state: true };
+
+    // Promise.all nos permite ejecutar ambas promesas simultaneamente, mejorando el rendimiento
+    const [ total, usuarios ] = await Promise.all([
+        Usuario.countDocuments(query),
+        Usuario.find(query)
+            .skip( Number(startFrom) )
+            .limit( Number(limit) )
+    ]);
 
     res.json({
-        msg: 'GET API - Controller',
-        ...params
+        total,
+        usuarios
     });
 };
 
-const userPut = (req = request, res = response) => {
+const userPut = async(req = request, res = response) => {
     const { id } = req.params;
+    const { _id, password, google, correo, ...rest } = req.body;
+
+    //TODO: validar contra BD
+    if ( password ) {
+        const salt = bcrypyjs.genSaltSync(10);
+        rest.password = bcrypyjs.hashSync(password, salt);
+    }
+
+    const usuario = await Usuario.findByIdAndUpdate(id, rest);
     
-    res.json({
-        msg: 'PUT API - Controller',
-        id
-    });
+    res.json(usuario);
 };
 
 const userPost = async(req = request, res = response) => {
     const { name, email, password, role } = req.body;
     const usuario = new Usuario({ name, email, password, role });
-
-    // Verificar si el correo existe
-    // const emailExists = await Usuario.findOne({ email });
-    // if ( emailExists ) {
-    //     return res.status(400).json({
-    //         msg: 'El correo provisto ya está registrado'
-    //     });
-    // }
 
     // Hacer el hash de la contraseña
     const salt = bcrypyjs.genSaltSync(10);
@@ -49,9 +56,17 @@ const userPost = async(req = request, res = response) => {
     });
 }
 
-const userDelete = (req = request, res = response) => {
+const userDelete = async(req = request, res = response) => {
+    const { id } = req.params;
+
+    // Para eliminarlo físicamente
+    //const usuario = await Usuario.findByIdAndDelete( id );
+
+    // Lo eliminamos de manera lógica
+    const usuario = await Usuario.findByIdAndUpdate( id, {state: false} );
+
     res.json({
-        msg: 'DELTE API - Controller'
+        usuario
     });
 }
 
